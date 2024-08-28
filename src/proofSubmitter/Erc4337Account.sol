@@ -3,11 +3,14 @@
 
 pragma solidity 0.8.17;
 
-import "../@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "../erc4337/IAccount.sol";
-import "../erc4337/IEntryPointStakeManager.sol";
-import "../erc4337/UserOperation.sol";
-import "./eigenLayer/IEigenPodManager.sol";
+import "../lib/erc4337/UserOperation.sol";
+import "../lib/erc4337/IAccount.sol";
+import "../lib/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "../lib/erc4337/IEntryPointStakeManager.sol";
+
+/// @notice passed address should be the owner
+/// @param _passedAddress passed address
+error Erc4337Account__NotOwner(address _passedAddress, address _owner);
 
 /// @notice passed address should be a valid ERC-4337 entryPoint
 /// @param _passedAddress passed address
@@ -16,8 +19,6 @@ error Erc4337Account__NotEntryPoint(address _passedAddress);
 /// @notice data length should be at least 4 byte to be a function signature
 error Erc4337Account__DataTooShort();
 
-/// @notice only account owner is allowed to withdraw from EntryPoint
-error Erc4337Account__NotAllowedToWithdrawFromEntryPoint();
 
 /// @title ERC-4337 smart wallet account
 abstract contract Erc4337Account is IAccount {
@@ -26,30 +27,20 @@ abstract contract Erc4337Account is IAccount {
     /// @notice Singleton ERC-4337 entryPoint 0.6.0
     address payable constant entryPoint = payable(0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789);
 
-    IEigenPodManager private i_eigenPodManager;
-
-    address private s_owner;
-
-    constructor(IEigenPodManager _eigenPodManager) {
-        i_eigenPodManager = _eigenPodManager;
+    /// @notice If caller not factory, revert
+    modifier onlyEntryPoint() {
+        if (msg.sender != entryPoint) {
+            revert Erc4337Account__NotEntryPoint(msg.sender);
+        }
+        _;
     }
 
-    /// @inheritdoc
-    function initialize(
-        address _owner
-    ) external onlyFactory {
-        if (_owner == address(0)) {
-            revert();
+    /// @notice If caller not owner, revert
+    modifier onlyOwner() {
+        if (msg.sender != owner()) {
+            revert Erc4337Account__NotOwner(msg.sender, owner());
         }
-
-        s_owner = _owner;
-
-        emit Erc4337Account__Initialized(_owner);
-
-        bool hasPod = i_eigenPodManager.hasPod(_owner);
-        if (!hasPod) {
-            revert();
-        }
+        _;
     }
 
     /// @inheritdoc IAccount
@@ -57,21 +48,17 @@ abstract contract Erc4337Account is IAccount {
         UserOperation calldata userOp,
         bytes32 userOpHash,
         uint256 missingAccountFunds
-    ) external override returns (uint256 validationData) {
-        if (msg.sender != entryPoint) {
-            revert Erc4337Account__NotEntryPoint(msg.sender);
-        }
-
+    )
+    external
+    onlyEntryPoint
+    override
+    returns (uint256 validationData) {
         validationData = _validateSignature(userOp, userOpHash);
         _payPrefund(missingAccountFunds);
     }
 
     /// @notice Withdraw this contract's balance from EntryPoint back to this contract
-    function withdrawFromEntryPoint() external {
-        if (msg.sender != owner()) {
-            revert Erc4337Account__NotAllowedToWithdrawFromEntryPoint();
-        }
-
+    function withdrawFromEntryPoint() external onlyOwner {
         uint256 balance = IEntryPointStakeManager(entryPoint).balanceOf(address(this));
         IEntryPointStakeManager(entryPoint).withdrawTo(payable(address(this)), balance);
     }
@@ -118,18 +105,7 @@ abstract contract Erc4337Account is IAccount {
         }
     }
 
-    function _call(address target, bytes memory data) internal {
-        (bool success, bytes memory result) = target.call(data);
-        if (!success) {
-            assembly {
-                revert(add(result, 32), mload(result))
-            }
-        }
-    }
-
-    function owner() public view returns (address) {
-        return s_owner;
-    }
+    function owner() public view virtual returns (address);
 
     function operator() public view virtual returns (address);
 }
