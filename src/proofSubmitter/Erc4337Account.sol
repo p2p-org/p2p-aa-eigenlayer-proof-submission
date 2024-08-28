@@ -16,9 +16,6 @@ error Erc4337Account__NotOwner(address _passedAddress, address _owner);
 /// @param _passedAddress passed address
 error Erc4337Account__NotEntryPoint(address _passedAddress);
 
-/// @notice data length should be at least 4 byte to be a function signature
-error Erc4337Account__DataTooShort();
-
 
 /// @title ERC-4337 smart wallet account
 abstract contract Erc4337Account is IAccount {
@@ -76,22 +73,12 @@ abstract contract Erc4337Account is IAccount {
         address signer = hash.recover(_userOp.signature);
 
         if (
-            signer == operator() || signer == owner()
+            isOperator(signer) || signer == owner()
         ) {
             validationData = 0;
         } else {
             validationData = 1;
         }
-    }
-
-    /// @notice Returns function selector (first 4 bytes of data)
-    /// @param _data calldata (encoded signature + arguments)
-    /// @return functionSelector function selector
-    function _getFunctionSelector(bytes calldata _data) private pure returns (bytes4 functionSelector) {
-        if (_data.length < 4) {
-            revert Erc4337Account__DataTooShort();
-        }
-        return bytes4(_data[:4]);
     }
 
     /// @notice sends to the entrypoint (msg.sender) the missing funds for this transaction.
@@ -107,5 +94,5 @@ abstract contract Erc4337Account is IAccount {
 
     function owner() public view virtual returns (address);
 
-    function operator() public view virtual returns (address);
+    function isOperator(address _address) public view virtual returns (bool);
 }

@@ -9,14 +9,41 @@ import "../proofSubmitterFactory/IProofSubmitterFactory.sol";
 import "../lib/eigenLayer/IEigenPodManager.sol";
 import "../lib/@openzeppelin/contracts/utils/Address.sol";
 
+/// @notice data length should be at least 4 byte to be a function signature
+error ProofSubmitter__DataTooShort();
+
+error ProofSubmitter__NotAllowedToCall(
+    address _target,
+    bytes4 _selector
+);
+
+enum RuleType {
+    NonAllowed,
+    AnyCalldata,
+    StartsWith,
+    EndsWith,
+    Between
+}
+
+struct Rule {
+    RuleType ruleType;
+    uint32 bytesCount;
+    uint32 startIndex;
+}
+
+struct AllowedCalldata {
+    Rule rule;
+    bytes allowedBytes;
+}
 
 contract ProofSubmitter is Erc4337Account, IProofSubmitter {
     IEigenPodManager private immutable i_eigenPodManager;
     IProofSubmitterFactory private immutable i_factory;
 
     address private s_owner;
+    mapping(address => bool) private s_isOperator;
 
-    mapping (address => bool) private s_isOperator;
+    mapping(address => mapping(bytes4 => AllowedCalldata)) private s_allowedFunctionsForContracts;
 
     /// @notice If caller is any account other than the operator or the owner, revert
     modifier onlyOperatorOrOwner() {
@@ -74,40 +101,108 @@ contract ProofSubmitter is Erc4337Account, IProofSubmitter {
         emit ProofSubmitter__OperatorDismissed(_operator);
     }
 
+    function setAllowedFunctionForContract(
+        address _contract,
+        bytes4 _selector,
+        AllowedCalldata calldata _allowedCalldata
+    ) external onlyOwner {
+        s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
+
+        emit ProofSubmitter__AllowedFunctionForContractSet(_contract, _selector, _allowedCalldata);
+    }
+
+    function removeAllowedFunctionForContract(
+        address _contract,
+        bytes4 _selector
+    ) external onlyOwner {
+        delete s_allowedFunctionsForContracts[_contract][_selector];
+
+        emit ProofSubmitter__AllowedFunctionForContractRemoved(_contract, _selector);
+    }
+
     /**
     * execute a transaction (called directly from owner, or by entryPoint)
     */
-    function execute(address target, bytes calldata data) external onlyEntryPointOrOwner {
-        Address.functionCall(target, data);
+    function execute(address _target, bytes calldata _data) external onlyEntryPointOrOwner {
+        _call(_target, _data);
     }
 
     /**
      * execute a sequence of transactions
      */
-    function executeBatch(address[] calldata targets, bytes[] calldata data) external onlyEntryPointOrOwner {
-        if (targets.length != data.length) {
-            revert ProofSubmitter__WrongArrayLengths(targets.length, data.length);
+    function executeBatch(address[] calldata _targets, bytes[] calldata _data) external onlyEntryPointOrOwner {
+        if (_targets.length != _data.length) {
+            revert ProofSubmitter__WrongArrayLengths(_targets.length, _data.length);
         }
 
-        for (uint256 i = 0; i < targets.length; i++) {
-            Address.functionCall(targets[i], data[i]);
+        for (uint256 i = 0; i < _targets.length; i++) {
+            _call(_targets[i], _data[i]);
         }
     }
 
-    function _call(address target, bytes memory data) internal {
-        (bool success, bytes memory result) = target.call(data);
-        if (!success) {
-            assembly {
-                revert(add(result, 32), mload(result))
-            }
+    function _call(address _target, bytes calldata _data) private {
+        bytes4 selector = _getFunctionSelector(_data);
+        bool isAllowed = _isAllowedCalldata(_target, selector, _data[:4]);
+
+        if (isAllowed) {
+            Address.functionCall(_target, _data);
+        } else {
+            revert ProofSubmitter__NotAllowedToCall(_target, selector);
         }
+    }
+
+    /// @notice Returns function selector (first 4 bytes of data)
+    /// @param _data calldata (encoded signature + arguments)
+    /// @return functionSelector function selector
+    function _getFunctionSelector(bytes calldata _data) private pure returns (bytes4 functionSelector) {
+        if (_data.length < 4) {
+            revert ProofSubmitter__DataTooShort();
+        }
+        return bytes4(_data[:4]);
+    }
+
+    function _isAllowedCalldata(
+        address _target,
+        bytes4 _selector,
+        bytes calldata _calldataAfterSelector
+    ) private view returns (bool) {
+        AllowedCalldata storage allowedCalldata = s_allowedFunctionsForContracts[_target][_selector];
+        Rule memory rule = allowedCalldata.rule;
+
+        RuleType ruleType = rule.ruleType;
+        uint32 bytesCount = rule.bytesCount;
+        uint32 startIndex = rule.startIndex;
+
+        if (ruleType == RuleType.NonAllowed) {
+            return false;
+        } else if (ruleType == RuleType.AnyCalldata) {
+            return true;
+        } else if (ruleType == RuleType.StartsWith) {
+            // Ensure the calldata is at least as long as bytesCount
+            if (_calldataAfterSelector.length < bytesCount) return false;
+            // Compare the beginning of the calldata with the allowed bytes
+            return keccak256(_calldataAfterSelector[:bytesCount]) == keccak256(allowedCalldata.allowedBytes);
+        } else if (ruleType == RuleType.EndsWith) {
+            // Ensure the calldata is at least as long as bytesCount
+            if (_calldataAfterSelector.length < bytesCount) return false;
+            // Compare the end of the calldata with the allowed bytes
+            return keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(allowedCalldata.allowedBytes);
+        } else if (ruleType == RuleType.Between) {
+            // Ensure the calldata is at least as long as the range defined by startIndex and bytesCount
+            if (_calldataAfterSelector.length < startIndex + bytesCount) return false;
+            // Compare the specified range in the calldata with the allowed bytes
+            return keccak256(_calldataAfterSelector[startIndex:startIndex + bytesCount]) == keccak256(allowedCalldata.allowedBytes);
+        }
+
+        // Default to false if none of the conditions are met
+        return false;
     }
 
     function owner() public view override(Erc4337Account) returns (address) {
         return s_owner;
     }
 
-    function isOperator(address _address) public view returns (bool) {
+    function isOperator(address _address) public view override(Erc4337Account) returns (bool) {
         return s_isOperator[_address];
     }
 }
