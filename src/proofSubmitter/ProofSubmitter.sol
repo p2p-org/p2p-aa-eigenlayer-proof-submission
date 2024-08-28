@@ -7,6 +7,7 @@ import "./Erc4337Account.sol";
 import "./IProofSubmitter.sol";
 import "../proofSubmitterFactory/IProofSubmitterFactory.sol";
 import "../lib/eigenLayer/IEigenPodManager.sol";
+import "../lib/@openzeppelin/contracts/utils/Address.sol";
 
 
 contract ProofSubmitter is Erc4337Account, IProofSubmitter {
@@ -21,6 +22,14 @@ contract ProofSubmitter is Erc4337Account, IProofSubmitter {
     modifier onlyOperatorOrOwner() {
         if (!isOperator(msg.sender) && msg.sender != owner()) {
             revert ProofSubmitter__CallerNeitherOperatorNorOwner(msg.sender);
+        }
+        _;
+    }
+
+    /// @notice If caller is any account other than the EntryPoint or the owner, revert
+    modifier onlyEntryPointOrOwner() {
+        if (msg.sender != entryPoint && msg.sender != owner()) {
+            revert ProofSubmitter__CallerNeitherEntryPointNorOwner(msg.sender);
         }
         _;
     }
@@ -63,6 +72,26 @@ contract ProofSubmitter is Erc4337Account, IProofSubmitter {
         s_isOperator[_operator] = false;
 
         emit ProofSubmitter__OperatorDismissed(_operator);
+    }
+
+    /**
+    * execute a transaction (called directly from owner, or by entryPoint)
+    */
+    function execute(address target, bytes calldata data) external onlyEntryPointOrOwner {
+        Address.functionCall(target, data);
+    }
+
+    /**
+     * execute a sequence of transactions
+     */
+    function executeBatch(address[] calldata targets, bytes[] calldata data) external onlyEntryPointOrOwner {
+        if (targets.length != data.length) {
+            revert ProofSubmitter__WrongArrayLengths(targets.length, data.length);
+        }
+
+        for (uint256 i = 0; i < targets.length; i++) {
+            Address.functionCall(targets[i], data[i]);
+        }
     }
 
     function _call(address target, bytes memory data) internal {
