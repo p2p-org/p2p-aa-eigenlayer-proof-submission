@@ -11,8 +11,9 @@ import "../lib/@openzeppelin/contracts/utils/Address.sol";
 import "./ProofSubmitterErrors.sol";
 import "./ProofSubmitterStructs.sol";
 import "../lib/eigenLayer/IRewardsCoordinator.sol";
+import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, IProofSubmitter {
+contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, ERC165, IProofSubmitter {
     IEigenPodManager private immutable i_eigenPodManager;
     IProofSubmitterFactory private immutable i_factory;
 
@@ -39,17 +40,16 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     /// @notice If caller not factory, revert
     modifier onlyFactory() {
         if (msg.sender != address(i_factory)) {
-            revert ProofSubmitter__NotFactoryCalled(msg.sender, i_factory);
+            revert ProofSubmitter__NotFactoryCalled(msg.sender, address(i_factory));
         }
         _;
     }
 
     constructor(address _factory, IEigenPodManager _eigenPodManager) {
-        i_factory = _factory;
+        i_factory = IProofSubmitterFactory(_factory);
         i_eigenPodManager = _eigenPodManager;
     }
 
-    /// @inheritdoc
     function initialize(address _owner) external onlyFactory {
         if (_owner == address(0)) {
             revert ProofSubmitter__ZeroAddressOwner();
@@ -73,7 +73,9 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IEigenPod.startCheckpoint.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.AnyCalldata
+                ruleType: RuleType.AnyCalldata,
+                bytesCount: 0,
+                startIndex: 0
             }),
                 allowedBytes: ""
             })
@@ -83,7 +85,9 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IEigenPod.verifyWithdrawalCredentials.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.AnyCalldata
+                ruleType: RuleType.AnyCalldata,
+                bytesCount: 0,
+                startIndex: 0
             }),
                 allowedBytes: ""
             })
@@ -93,7 +97,9 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IEigenPod.verifyCheckpointProofs.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.AnyCalldata
+                ruleType: RuleType.AnyCalldata,
+                bytesCount: 0,
+                startIndex: 0
             }),
                 allowedBytes: ""
             })
@@ -105,9 +111,10 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             AllowedCalldata({
                 rule: Rule({
                 ruleType: RuleType.EndsWith,
-                bytesCount: 20
+                bytesCount: 20,
+                startIndex: 0
             }),
-                allowedBytes: bytes(bytes20(_owner))
+                allowedBytes: abi.encodePacked(_owner)
             })
         );
     }
@@ -164,7 +171,7 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     function _setAllowedFunctionForContract(
         address _contract,
         bytes4 _selector,
-        AllowedCalldata calldata _allowedCalldata
+        AllowedCalldata memory _allowedCalldata
     ) private {
         s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
 
@@ -235,5 +242,14 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
 
     function isOperator(address _address) public view override(Erc4337Account) returns (bool) {
         return s_isOperator[_address];
+    }
+
+    function factory() public view override returns (address) {
+        return i_factory;
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IProofSubmitter).interfaceId || super.supportsInterface(interfaceId);
     }
 }

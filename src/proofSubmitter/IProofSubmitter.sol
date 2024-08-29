@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2024 P2P Validator <info@p2p.org>
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.24;
+pragma solidity 0.8.17;
 import "../lib/@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./ProofSubmitterStructs.sol";
 
@@ -28,7 +28,7 @@ interface IProofSubmitter is IERC165 {
 
     /// @notice Set owner address.
     /// @dev Could not be in the constructor since it is different for different owners.
-    /// @param _owner
+    /// @param _owner owner address
     function initialize(address _owner) external;
 
     /// @notice Returns the factory address

@@ -3,11 +3,12 @@
 
 pragma solidity 0.8.17;
 
-import "./@openzeppelin/contracts/proxy/Clones.sol";
-import "./proofSubmitter/ProofSubmitter.sol";
+import "../proofSubmitter/ProofSubmitter.sol";
 import "./IProofSubmitterFactory.sol";
+import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import "../lib/@openzeppelin/contracts/proxy/Clones.sol";
 
-contract ProofSubmitterFactory is IProofSubmitterFactory {
+contract ProofSubmitterFactory is ERC165, IProofSubmitterFactory {
     /// @notice Singleton ERC-4337 entryPoint 0.6.0
     address payable constant entryPoint = payable(0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789);
 
@@ -25,8 +26,8 @@ contract ProofSubmitterFactory is IProofSubmitterFactory {
         }
 
         proofSubmitter = ProofSubmitter(payable(Clones.cloneDeterministic(
-            i_referenceProofSubmitter,
-            bytes32(msg.sender)
+            address(i_referenceProofSubmitter),
+            bytes32(uint256(uint160(msg.sender)))
         )));
 
         proofSubmitter.initialize(msg.sender);
@@ -34,10 +35,15 @@ contract ProofSubmitterFactory is IProofSubmitterFactory {
         IEntryPointStakeManager(entryPoint).depositTo{value: msg.value}(proofSubmitterAddress);
     }
 
-    function predictProofSubmitterAddress(address owner) public view returns (address) {
+    function predictProofSubmitterAddress(address _owner) public view returns (address) {
         return Clones.predictDeterministicAddress(
-            i_referenceProofSubmitter,
-            bytes32(owner)
+            address(i_referenceProofSubmitter),
+            bytes32(uint256(uint160(_owner)))
         );
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IProofSubmitterFactory).interfaceId || super.supportsInterface(interfaceId);
     }
 }
