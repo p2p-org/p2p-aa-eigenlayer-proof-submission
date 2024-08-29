@@ -1,5 +1,7 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+// SPDX-FileCopyrightText: 2024 P2P Validator <info@p2p.org>
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.17;
 
 contract ProofSubmitterErrors {
     /// @notice data length should be at least 4 byte to be a function signature

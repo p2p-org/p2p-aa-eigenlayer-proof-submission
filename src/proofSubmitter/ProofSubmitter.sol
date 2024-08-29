@@ -10,6 +10,7 @@ import "../lib/eigenLayer/IEigenPodManager.sol";
 import "../lib/@openzeppelin/contracts/utils/Address.sol";
 import "./ProofSubmitterErrors.sol";
 import "./ProofSubmitterStructs.sol";
+import "../lib/eigenLayer/IRewardsCoordinator.sol";
 
 contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, IProofSubmitter {
     IEigenPodManager private immutable i_eigenPodManager;
@@ -54,14 +55,61 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             revert ProofSubmitter__ZeroAddressOwner();
         }
 
-        s_owner = _owner;
-
-        emit ProofSubmitter__Initialized(_owner);
-
         bool hasPod = i_eigenPodManager.hasPod(_owner);
         if (!hasPod) {
             revert ProofSubmitter__OwnerShouldHaveEigenPod();
         }
+
+        s_owner = _owner;
+        emit ProofSubmitter__Initialized(_owner);
+
+        _setInitialRules(_owner);
+    }
+
+    function _setInitialRules(address _owner) private {
+        address pod = i_eigenPodManager.getPod(_owner);
+        _setAllowedFunctionForContract(
+            pod,
+            IEigenPod.startCheckpoint.selector,
+            AllowedCalldata({
+                rule: Rule({
+                ruleType: RuleType.AnyCalldata
+            }),
+                allowedBytes: ""
+            })
+        );
+        _setAllowedFunctionForContract(
+            pod,
+            IEigenPod.verifyWithdrawalCredentials.selector,
+            AllowedCalldata({
+                rule: Rule({
+                ruleType: RuleType.AnyCalldata
+            }),
+                allowedBytes: ""
+            })
+        );
+        _setAllowedFunctionForContract(
+            pod,
+            IEigenPod.verifyCheckpointProofs.selector,
+            AllowedCalldata({
+                rule: Rule({
+                ruleType: RuleType.AnyCalldata
+            }),
+                allowedBytes: ""
+            })
+        );
+
+        _setAllowedFunctionForContract(
+            pod,
+            IRewardsCoordinator.processClaim.selector,
+            AllowedCalldata({
+                rule: Rule({
+                ruleType: RuleType.EndsWith,
+                bytesCount: 20
+            }),
+                allowedBytes: bytes(bytes20(_owner))
+            })
+        );
     }
 
     function setOperator(address _newOperator) external onlyOperatorOrOwner {
@@ -81,9 +129,7 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         bytes4 _selector,
         AllowedCalldata calldata _allowedCalldata
     ) external onlyOwner {
-        s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
-
-        emit ProofSubmitter__AllowedFunctionForContractSet(_contract, _selector, _allowedCalldata);
+        _setAllowedFunctionForContract(_contract, _selector, _allowedCalldata);
     }
 
     function removeAllowedFunctionForContract(
@@ -113,6 +159,16 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         for (uint256 i = 0; i < _targets.length; i++) {
             _call(_targets[i], _data[i]);
         }
+    }
+
+    function _setAllowedFunctionForContract(
+        address _contract,
+        bytes4 _selector,
+        AllowedCalldata calldata _allowedCalldata
+    ) private {
+        s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
+
+        emit ProofSubmitter__AllowedFunctionForContractSet(_contract, _selector, _allowedCalldata);
     }
 
     function _call(address _target, bytes calldata _data) private {
