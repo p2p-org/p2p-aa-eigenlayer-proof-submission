@@ -8,41 +8,15 @@ import "./IProofSubmitter.sol";
 import "../proofSubmitterFactory/IProofSubmitterFactory.sol";
 import "../lib/eigenLayer/IEigenPodManager.sol";
 import "../lib/@openzeppelin/contracts/utils/Address.sol";
+import "./ProofSubmitterErrors.sol";
+import "./ProofSubmitterStructs.sol";
 
-/// @notice data length should be at least 4 byte to be a function signature
-error ProofSubmitter__DataTooShort();
-
-error ProofSubmitter__NotAllowedToCall(
-    address _target,
-    bytes4 _selector
-);
-
-enum RuleType {
-    NonAllowed,
-    AnyCalldata,
-    StartsWith,
-    EndsWith,
-    Between
-}
-
-struct Rule {
-    RuleType ruleType;
-    uint32 bytesCount;
-    uint32 startIndex;
-}
-
-struct AllowedCalldata {
-    Rule rule;
-    bytes allowedBytes;
-}
-
-contract ProofSubmitter is Erc4337Account, IProofSubmitter {
+contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, IProofSubmitter {
     IEigenPodManager private immutable i_eigenPodManager;
     IProofSubmitterFactory private immutable i_factory;
 
     address private s_owner;
     mapping(address => bool) private s_isOperator;
-
     mapping(address => mapping(bytes4 => AllowedCalldata)) private s_allowedFunctionsForContracts;
 
     /// @notice If caller is any account other than the operator or the owner, revert
@@ -70,13 +44,14 @@ contract ProofSubmitter is Erc4337Account, IProofSubmitter {
     }
 
     constructor(address _factory, IEigenPodManager _eigenPodManager) {
+        i_factory = _factory;
         i_eigenPodManager = _eigenPodManager;
     }
 
     /// @inheritdoc
     function initialize(address _owner) external onlyFactory {
         if (_owner == address(0)) {
-            revert();
+            revert ProofSubmitter__ZeroAddressOwner();
         }
 
         s_owner = _owner;
@@ -85,7 +60,7 @@ contract ProofSubmitter is Erc4337Account, IProofSubmitter {
 
         bool hasPod = i_eigenPodManager.hasPod(_owner);
         if (!hasPod) {
-            revert();
+            revert ProofSubmitter__OwnerShouldHaveEigenPod();
         }
     }
 

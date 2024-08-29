@@ -3,13 +3,27 @@
 
 pragma solidity 0.8.24;
 import "../lib/@openzeppelin/contracts/utils/introspection/IERC165.sol";
-
+import "./ProofSubmitterStructs.sol";
 
 /// @dev External interface of ProofSubmitter declared to support ERC165 detection.
 interface IProofSubmitter is IERC165 {
 
     /// @notice TODO
-    event IProofSubmitter__Initialized(
+    event ProofSubmitter__Initialized(address _owner);
+
+    event ProofSubmitter__OperatorSet(address _newOperator);
+
+    event ProofSubmitter__OperatorDismissed(address _operator);
+
+    event ProofSubmitter__AllowedFunctionForContractSet(
+        address indexed _contract,
+        bytes4 indexed _selector,
+        ProofSubmitterStructs.AllowedCalldata _allowedCalldata
+    );
+
+    event ProofSubmitter__AllowedFunctionForContractRemoved(
+        address _contract,
+        bytes4 _selector
     );
 
     /// @notice Set owner address.
