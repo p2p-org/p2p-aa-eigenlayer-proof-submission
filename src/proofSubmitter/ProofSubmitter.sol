@@ -15,6 +15,7 @@ import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, ERC165, IProofSubmitter {
     IEigenPodManager private immutable i_eigenPodManager;
+    IRewardsCoordinator private immutable i_rewardsCoordinator;
     IProofSubmitterFactory private immutable i_factory;
 
     address private s_owner;
@@ -45,9 +46,16 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         _;
     }
 
-    constructor(address _factory, IEigenPodManager _eigenPodManager) {
+    constructor(address _factory) {
         i_factory = IProofSubmitterFactory(_factory);
-        i_eigenPodManager = _eigenPodManager;
+
+        i_eigenPodManager = (block.chainid == 1)
+            ? IEigenPodManager(0x91E677b07F7AF907ec9a428aafA9fc14a0d3A338)
+            : IEigenPodManager(0x30770d7E3e71112d7A6b7259542D1f680a70e315);
+
+        i_rewardsCoordinator = (block.chainid == 1)
+            ? IRewardsCoordinator(0x7750d328b314EfFa365A0402CcfD489B80B0adda)
+            : IRewardsCoordinator(0xAcc1fb458a1317E886dB376Fc8141540537E68fE);
     }
 
     function initialize(address _owner) external onlyFactory {
@@ -245,7 +253,7 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     }
 
     function factory() public view override returns (address) {
-        return i_factory;
+        return address(i_factory);
     }
 
     /// @inheritdoc ERC165
