@@ -15,7 +15,7 @@ contract ProofSubmitterFactory is ERC165, IProofSubmitterFactory {
     ProofSubmitter public immutable i_referenceProofSubmitter;
 
     constructor() {
-        i_referenceProofSubmitter = new ProofSubmitter(address(this));
+        i_referenceProofSubmitter = new ProofSubmitter(this);
     }
 
     function createProofSubmitter() external payable returns (ProofSubmitter proofSubmitter) {

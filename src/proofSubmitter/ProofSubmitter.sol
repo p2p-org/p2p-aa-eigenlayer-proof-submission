@@ -46,8 +46,8 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         _;
     }
 
-    constructor(address _factory) {
-        i_factory = IProofSubmitterFactory(_factory);
+    constructor(IProofSubmitterFactory _factory) {
+        i_factory = _factory;
 
         i_eigenPodManager = (block.chainid == 1)
             ? IEigenPodManager(0x91E677b07F7AF907ec9a428aafA9fc14a0d3A338)
@@ -114,7 +114,7 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         );
 
         _setAllowedFunctionForContract(
-            pod,
+            address(i_rewardsCoordinator),
             IRewardsCoordinator.processClaim.selector,
             AllowedCalldata({
                 rule: Rule({
