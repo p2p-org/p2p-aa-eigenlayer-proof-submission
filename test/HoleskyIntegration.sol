@@ -49,4 +49,24 @@ contract HoleskyIntegration is Test {
         uint256 actualBalance = proofSubmitter.getBalance();
         assertEq(deposited, actualBalance);
     }
+
+    function test_WithdrawFromEntryPoint() external {
+        uint256 deposited = 10 ether;
+
+        vm.startPrank(clientAddress);
+
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{value: deposited}();
+
+        uint256 actualBalance = proofSubmitter.getBalance();
+        assertEq(deposited, actualBalance);
+
+        uint256 clientBalanceBeforeWithdraw = clientAddress.balance;
+        proofSubmitter.withdrawFromEntryPoint();
+        uint256 clientBalanceAfterWithdraw = clientAddress.balance;
+
+        assertEq(clientBalanceAfterWithdraw - clientBalanceBeforeWithdraw, deposited);
+
+        vm.stopPrank();
+    }
 }

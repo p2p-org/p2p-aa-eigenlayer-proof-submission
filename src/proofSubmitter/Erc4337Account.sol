@@ -57,7 +57,7 @@ abstract contract Erc4337Account is IAccount {
     /// @notice Withdraw this contract's balance from EntryPoint back to this contract
     function withdrawFromEntryPoint() external onlyOwner {
         uint256 balance = IEntryPointStakeManager(entryPoint).balanceOf(address(this));
-        IEntryPointStakeManager(entryPoint).withdrawTo(payable(address(this)), balance);
+        IEntryPointStakeManager(entryPoint).withdrawTo(payable(owner()), balance);
     }
 
     /// @notice Validates the signature of a user operation.
