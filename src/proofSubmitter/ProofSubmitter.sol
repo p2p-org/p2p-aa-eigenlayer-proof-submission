@@ -13,6 +13,9 @@ import "./ProofSubmitterStructs.sol";
 import "../lib/eigenLayer/IRewardsCoordinator.sol";
 import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
+import "forge-std/console.sol";
+import "forge-std/console2.sol";
+
 contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, ERC165, IProofSubmitter {
     IEigenPodManager private immutable i_eigenPodManager;
     IRewardsCoordinator private immutable i_rewardsCoordinator;
@@ -188,10 +191,12 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
 
     function _call(address _target, bytes calldata _data) private {
         bytes4 selector = _getFunctionSelector(_data);
-        bool isAllowed = isAllowedCalldata(_target, selector, _data[:4]);
+        bool isAllowed = isAllowedCalldata(_target, selector, _data[4:]);
 
         if (isAllowed) {
+            console.log("TEST");
             Address.functionCall(_target, _data);
+            console.log("TEST2");
         } else {
             revert ProofSubmitter__NotAllowedToCall(_target, selector);
         }
