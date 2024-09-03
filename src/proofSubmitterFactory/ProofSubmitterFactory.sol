@@ -10,7 +10,7 @@ import "../lib/@openzeppelin/contracts/proxy/Clones.sol";
 
 contract ProofSubmitterFactory is ERC165, IProofSubmitterFactory {
     /// @notice Singleton ERC-4337 entryPoint 0.6.0
-    address payable constant entryPoint = payable(0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789);
+    address payable constant public entryPoint = payable(0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789);
 
     ProofSubmitter public immutable i_referenceProofSubmitter;
 
@@ -40,6 +40,10 @@ contract ProofSubmitterFactory is ERC165, IProofSubmitterFactory {
             address(i_referenceProofSubmitter),
             bytes32(uint256(uint160(_owner)))
         );
+    }
+
+    function getReferenceProofSubmitter() external view returns (address) {
+        return address(i_referenceProofSubmitter);
     }
 
     /// @inheritdoc ERC165

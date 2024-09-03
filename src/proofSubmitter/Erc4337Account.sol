@@ -94,5 +94,9 @@ abstract contract Erc4337Account is IAccount {
 
     function owner() public view virtual returns (address);
 
+    function getBalance() external view returns (uint256) {
+        return IEntryPointStakeManager(entryPoint).balanceOf(address(this));
+    }
+
     function isOperator(address _address) public view virtual returns (bool);
 }

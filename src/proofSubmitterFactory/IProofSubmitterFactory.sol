@@ -7,4 +7,5 @@ import "../lib/@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /// @dev External interface of ProofSubmitterFactory declared to support ERC165 detection.
 interface IProofSubmitterFactory is IERC165 {
+    function getReferenceProofSubmitter() external view returns (address);
 }
