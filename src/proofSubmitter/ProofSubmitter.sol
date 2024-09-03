@@ -118,9 +118,9 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IRewardsCoordinator.processClaim.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.EndsWith,
+                ruleType: RuleType.Between,
                 bytesCount: 20,
-                startIndex: 0
+                startIndex: 44
             }),
                 allowedBytes: abi.encodePacked(_owner)
             })
@@ -188,7 +188,7 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
 
     function _call(address _target, bytes calldata _data) private {
         bytes4 selector = _getFunctionSelector(_data);
-        bool isAllowed = _isAllowedCalldata(_target, selector, _data[:4]);
+        bool isAllowed = isAllowedCalldata(_target, selector, _data[:4]);
 
         if (isAllowed) {
             Address.functionCall(_target, _data);
@@ -207,11 +207,18 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         return bytes4(_data[:4]);
     }
 
-    function _isAllowedCalldata(
+    function getAllowedCalldata(
+        address _target,
+        bytes4 _selector
+    ) external view returns (AllowedCalldata memory) {
+        return s_allowedFunctionsForContracts[_target][_selector];
+    }
+
+    function isAllowedCalldata(
         address _target,
         bytes4 _selector,
         bytes calldata _calldataAfterSelector
-    ) private view returns (bool) {
+    ) public view returns (bool) {
         AllowedCalldata storage allowedCalldata = s_allowedFunctionsForContracts[_target][_selector];
         Rule memory rule = allowedCalldata.rule;
 
