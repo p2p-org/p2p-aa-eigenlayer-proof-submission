@@ -139,24 +139,76 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function _generateUnsignedUserOperation(
-        address _sender,
-        bytes memory _callData
-    ) private view returns(UserOperation memory) {
-        uint256 nonce = 0;
-        return UserOperation({
-            sender: _sender,
-            nonce: nonce,
-            initCode: "",
-            callData: _callData,
-            callGasLimit: 1000000,
-            verificationGasLimit: 1000000,
-            preVerificationGas: 1000000,
-            maxFeePerGas: 1 gwei,
-            maxPriorityFeePerGas: 1 gwei,
-            paymasterAndData: "",
-            signature: ""
-        });
+    function test_ProofSubmitterExecuteOnPodFromServiceViaEntryPoint() external {
+        uint256 deposited = 10 ether;
+
+        vm.startPrank(clientAddress);
+
+        address pod = eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+                value: deposited
+            }();
+        proofSubmitter.setOperator(serviceAddress);
+        IEigenPodMock(pod).setProofSubmitter(address(proofSubmitter));
+
+        vm.stopPrank();
+
+        bytes memory executeCallData1 = abi.encodeWithSelector(
+            ProofSubmitter.execute.selector,
+            pod,
+            verifyWithdrawalCredentialsCalldata
+        );
+        vm.expectCall(
+            address(proofSubmitter),
+            executeCallData1
+        );
+        vm.expectCall(
+            pod,
+            verifyWithdrawalCredentialsCalldata
+        );
+        _executeUserOperation(
+            address(proofSubmitter),
+            servicePrivateKey,
+            executeCallData1
+        );
+
+        bytes memory executeCallData2 = abi.encodeWithSelector(
+            ProofSubmitter.execute.selector,
+            pod,
+            startCheckpointCalldata
+        );
+        vm.expectCall(
+            address(proofSubmitter),
+            executeCallData2
+        );
+        vm.expectCall(
+            pod,
+            startCheckpointCalldata
+        );
+        _executeUserOperation(
+            address(proofSubmitter),
+            servicePrivateKey,
+            executeCallData2
+        );
+
+        bytes memory executeCallData3 = abi.encodeWithSelector(
+            ProofSubmitter.execute.selector,
+            pod,
+            verifyCheckpointProofsCalldata
+        );
+        vm.expectCall(
+            address(proofSubmitter),
+            executeCallData3
+        );
+        vm.expectCall(
+            pod,
+            verifyCheckpointProofsCalldata
+        );
+        _executeUserOperation(
+            address(proofSubmitter),
+            servicePrivateKey,
+            executeCallData3
+        );
     }
 
     function test_ProofSubmitterExecuteOnRewardsCoordinatorFromServiceViaEntryPoint()
@@ -192,6 +244,26 @@ contract HoleskyIntegration is Test {
             servicePrivateKey,
             executeCallData
         );
+    }
+
+    function _generateUnsignedUserOperation(
+        address _sender,
+        bytes memory _callData
+    ) private view returns(UserOperation memory) {
+        uint256 nonce = entryPoint.getNonce(_sender, 0);
+        return UserOperation({
+            sender: _sender,
+            nonce: nonce,
+            initCode: "",
+            callData: _callData,
+            callGasLimit: 1000000,
+            verificationGasLimit: 1000000,
+            preVerificationGas: 1000000,
+            maxFeePerGas: 1 gwei,
+            maxPriorityFeePerGas: 1 gwei,
+            paymasterAndData: "",
+            signature: ""
+        });
     }
 
     function _executeUserOperation(
