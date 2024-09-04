@@ -174,14 +174,23 @@ contract HoleskyIntegration is Test {
 
         vm.stopPrank();
 
+        bytes memory executeCallData = abi.encodeWithSelector(
+            ProofSubmitter.execute.selector,
+            address(rewardsCoordinator),
+            processClaimCalldata
+        );
+        vm.expectCall(
+            address(proofSubmitter),
+            executeCallData
+        );
+        vm.expectCall(
+            address(rewardsCoordinator),
+            processClaimCalldata
+        );
         _executeUserOperation(
             address(proofSubmitter),
             servicePrivateKey,
-            abi.encodeWithSelector(
-                ProofSubmitter.execute.selector,
-                address(rewardsCoordinator),
-                processClaimCalldata
-            )
+            executeCallData
         );
     }
 
