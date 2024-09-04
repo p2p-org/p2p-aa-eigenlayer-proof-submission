@@ -29,12 +29,14 @@ contract HoleskyIntegration is Test {
     uint256 private clientPrivateKey;
     address private serviceAddress;
     uint256 private servicePrivateKey;
+    address private nobody;
 
     function setUp() public {
         vm.createSelectFork("holesky", 2255110);
 
         (clientAddress, clientPrivateKey) = makeAddrAndKey("client");
         (serviceAddress, servicePrivateKey) = makeAddrAndKey("service");
+        nobody = makeAddr("nobody");
 
         vm.deal(clientAddress, 1000 ether);
 
@@ -137,12 +139,28 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function _getUserOperation() private {
-
+    function _generateUnsignedUserOperation(
+        address _sender,
+        bytes memory _callData
+    ) private view returns(UserOperation memory) {
+        uint256 nonce = 0;
+        return UserOperation({
+            sender: _sender,
+            nonce: nonce,
+            initCode: "",
+            callData: _callData,
+            callGasLimit: 1000000,
+            verificationGasLimit: 1000000,
+            preVerificationGas: 1000000,
+            maxFeePerGas: 1 gwei,
+            maxPriorityFeePerGas: 1 gwei,
+            paymasterAndData: "",
+            signature: ""
+        });
     }
 
     function test_ProofSubmitterExecuteOnRewardsCoordinatorFromServiceViaEntryPoint()
-        external
+    external
     {
         uint256 deposited = 10 ether;
 
@@ -150,30 +168,21 @@ contract HoleskyIntegration is Test {
 
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
-            value: deposited
-        }();
+                value: deposited
+            }();
         proofSubmitter.setOperator(serviceAddress);
 
         vm.stopPrank();
         vm.startPrank(serviceAddress);
 
-        UserOperation memory userOp = UserOperation({
-            sender: address(proofSubmitter),
-            nonce: 0,
-            initCode: new bytes(0),
-            callData: abi.encodeWithSelector(
+        UserOperation memory userOp = _generateUnsignedUserOperation(
+            address(proofSubmitter),
+            abi.encodeWithSelector(
                 ProofSubmitter.execute.selector,
                 address(rewardsCoordinator),
                 processClaimCalldata
-            ),
-            callGasLimit: 1000000,
-            verificationGasLimit: 1000000,
-            preVerificationGas: 1000000,
-            maxFeePerGas: 1 gwei,
-            maxPriorityFeePerGas: 1 gwei,
-            paymasterAndData: new bytes(0),
-            signature: new bytes(0)
-        });
+            )
+        );
 
         bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
         bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
@@ -189,6 +198,37 @@ contract HoleskyIntegration is Test {
 
         // Call handleOps on the EntryPoint
         entryPoint.handleOps(userOps, payable(serviceAddress));
+
+        vm.stopPrank();
+    }
+
+    function _executeUserOperation(
+        uint256 _senderPrivateKey,
+        bytes memory _callData
+    ) private {
+        address senderAddress = vm.addr(_senderPrivateKey);
+
+        vm.startPrank(nobody);
+
+        UserOperation memory userOp = _generateUnsignedUserOperation(
+            senderAddress,
+            _callData
+        );
+
+        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
+        bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            _senderPrivateKey,
+            digest
+        );
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        // Create an array with a single user operation
+        UserOperation[] memory userOps = new UserOperation[](1);
+        userOps[0] = userOp;
+
+        // Call handleOps on the EntryPoint
+        entryPoint.handleOps(userOps, payable(nobody));
 
         vm.stopPrank();
     }
