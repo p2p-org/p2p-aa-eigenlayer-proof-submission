@@ -173,52 +173,34 @@ contract HoleskyIntegration is Test {
         proofSubmitter.setOperator(serviceAddress);
 
         vm.stopPrank();
-        vm.startPrank(serviceAddress);
 
-        UserOperation memory userOp = _generateUnsignedUserOperation(
+        _executeUserOperation(
             address(proofSubmitter),
+            servicePrivateKey,
             abi.encodeWithSelector(
                 ProofSubmitter.execute.selector,
                 address(rewardsCoordinator),
                 processClaimCalldata
             )
         );
-
-        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
-        bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            servicePrivateKey,
-            digest
-        );
-        userOp.signature = abi.encodePacked(r, s, v);
-
-        // Create an array with a single user operation
-        UserOperation[] memory userOps = new UserOperation[](1);
-        userOps[0] = userOp;
-
-        // Call handleOps on the EntryPoint
-        entryPoint.handleOps(userOps, payable(serviceAddress));
-
-        vm.stopPrank();
     }
 
     function _executeUserOperation(
-        uint256 _senderPrivateKey,
+        address _smartAccountAddress,
+        uint256 _signerPrivateKey,
         bytes memory _callData
     ) private {
-        address senderAddress = vm.addr(_senderPrivateKey);
-
         vm.startPrank(nobody);
 
         UserOperation memory userOp = _generateUnsignedUserOperation(
-            senderAddress,
+            _smartAccountAddress,
             _callData
         );
 
         bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
         bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            _senderPrivateKey,
+            _signerPrivateKey,
             digest
         );
         userOp.signature = abi.encodePacked(r, s, v);
