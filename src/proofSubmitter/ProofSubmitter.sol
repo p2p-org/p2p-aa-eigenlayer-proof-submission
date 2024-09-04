@@ -6,15 +6,14 @@ pragma solidity 0.8.17;
 import "./Erc4337Account.sol";
 import "./IProofSubmitter.sol";
 import "../proofSubmitterFactory/IProofSubmitterFactory.sol";
-import "../lib/eigenLayer/IEigenPodManager.sol";
-import "../lib/@openzeppelin/contracts/utils/Address.sol";
+
 import "./ProofSubmitterErrors.sol";
 import "./ProofSubmitterStructs.sol";
-import "../lib/eigenLayer/IRewardsCoordinator.sol";
-import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import "forge-std/console.sol";
-import "forge-std/console2.sol";
+import "../lib/eigenLayer/IEigenPodManager.sol";
+import "../lib/eigenLayer/IRewardsCoordinator.sol";
+import "../lib/@openzeppelin/contracts/utils/Address.sol";
+import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, ERC165, IProofSubmitter {
     IEigenPodManager private immutable i_eigenPodManager;
@@ -194,9 +193,7 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         bool isAllowed = isAllowedCalldata(_target, selector, _data[4:]);
 
         if (isAllowed) {
-            console.log("TEST");
             Address.functionCall(_target, _data);
-            console.log("TEST2");
         } else {
             revert ProofSubmitter__NotAllowedToCall(_target, selector);
         }
