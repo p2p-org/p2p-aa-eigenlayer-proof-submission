@@ -5,8 +5,9 @@ pragma solidity 0.8.17;
 
 import "../lib/erc4337/UserOperation.sol";
 import "../lib/erc4337/IAccount.sol";
-import "../lib/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../lib/erc4337/IEntryPointStakeManager.sol";
+
+import "../lib/@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @notice passed address should be the owner
 /// @param _passedAddress passed address
@@ -54,10 +55,15 @@ abstract contract Erc4337Account is IAccount {
         _payPrefund(missingAccountFunds);
     }
 
-    /// @notice Withdraw this contract's balance from EntryPoint back to this contract
+    /// @notice Withdraw this contract's balance from EntryPoint back to the owner
     function withdrawFromEntryPoint() external onlyOwner {
         uint256 balance = IEntryPointStakeManager(entryPoint).balanceOf(address(this));
         IEntryPointStakeManager(entryPoint).withdrawTo(payable(owner()), balance);
+    }
+
+    /// @notice Deposit ETH to this contract's balance in EntryPoint
+    function depositToEntryPoint() external payable {
+        IEntryPointStakeManager(entryPoint).depositTo{value: msg.value}(address(this));
     }
 
     /// @notice Validates the signature of a user operation.

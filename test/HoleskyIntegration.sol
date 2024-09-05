@@ -246,6 +246,76 @@ contract HoleskyIntegration is Test {
         );
     }
 
+    function test_WithdrawAndTopUp() external {
+        uint256 deposited = 10 ether;
+
+        vm.startPrank(clientAddress);
+
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+                value: deposited
+            }();
+        proofSubmitter.setOperator(serviceAddress);
+
+        uint256 actualBalance = proofSubmitter.getBalance();
+        assertEq(deposited, actualBalance);
+
+        uint256 clientBalanceBeforeWithdraw = clientAddress.balance;
+        proofSubmitter.withdrawFromEntryPoint();
+        uint256 clientBalanceAfterWithdraw = clientAddress.balance;
+
+        assertEq(
+            clientBalanceAfterWithdraw - clientBalanceBeforeWithdraw,
+            deposited
+        );
+
+        vm.stopPrank();
+
+        bytes memory executeCallData = abi.encodeWithSelector(
+            ProofSubmitter.execute.selector,
+            address(rewardsCoordinator),
+            processClaimCalldata
+        );
+
+        UserOperation memory userOp = _generateUnsignedUserOperation(
+            address(proofSubmitter),
+            executeCallData
+        );
+
+        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
+        bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            servicePrivateKey,
+            digest
+        );
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        // Create an array with a single user operation
+        UserOperation[] memory userOps = new UserOperation[](1);
+        userOps[0] = userOp;
+
+        vm.startPrank(nobody);
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA21 didn't pay prefund"));
+        entryPoint.handleOps(userOps, payable(nobody));
+        vm.stopPrank();
+
+        vm.startPrank(clientAddress);
+        proofSubmitter.depositToEntryPoint{value: deposited}();
+        vm.stopPrank();
+
+        vm.startPrank(nobody);
+        vm.expectCall(
+            address(proofSubmitter),
+            executeCallData
+        );
+        vm.expectCall(
+            address(rewardsCoordinator),
+            processClaimCalldata
+        );
+        entryPoint.handleOps(userOps, payable(nobody));
+        vm.stopPrank();
+    }
+
     function _generateUnsignedUserOperation(
         address _sender,
         bytes memory _callData
