@@ -139,15 +139,17 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_ProofSubmitterExecuteOnPodFromServiceViaEntryPoint() external {
+    function test_ProofSubmitterExecuteOnPodFromServiceViaEntryPoint()
+        external
+    {
         uint256 deposited = 10 ether;
 
         vm.startPrank(clientAddress);
 
         address pod = eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
-                value: deposited
-            }();
+            value: deposited
+        }();
         proofSubmitter.setOperator(serviceAddress);
         IEigenPodMock(pod).setProofSubmitter(address(proofSubmitter));
 
@@ -158,14 +160,8 @@ contract HoleskyIntegration is Test {
             pod,
             verifyWithdrawalCredentialsCalldata
         );
-        vm.expectCall(
-            address(proofSubmitter),
-            executeCallData1
-        );
-        vm.expectCall(
-            pod,
-            verifyWithdrawalCredentialsCalldata
-        );
+        vm.expectCall(address(proofSubmitter), executeCallData1);
+        vm.expectCall(pod, verifyWithdrawalCredentialsCalldata);
         _executeUserOperation(
             address(proofSubmitter),
             servicePrivateKey,
@@ -177,14 +173,8 @@ contract HoleskyIntegration is Test {
             pod,
             startCheckpointCalldata
         );
-        vm.expectCall(
-            address(proofSubmitter),
-            executeCallData2
-        );
-        vm.expectCall(
-            pod,
-            startCheckpointCalldata
-        );
+        vm.expectCall(address(proofSubmitter), executeCallData2);
+        vm.expectCall(pod, startCheckpointCalldata);
         _executeUserOperation(
             address(proofSubmitter),
             servicePrivateKey,
@@ -196,14 +186,8 @@ contract HoleskyIntegration is Test {
             pod,
             verifyCheckpointProofsCalldata
         );
-        vm.expectCall(
-            address(proofSubmitter),
-            executeCallData3
-        );
-        vm.expectCall(
-            pod,
-            verifyCheckpointProofsCalldata
-        );
+        vm.expectCall(address(proofSubmitter), executeCallData3);
+        vm.expectCall(pod, verifyCheckpointProofsCalldata);
         _executeUserOperation(
             address(proofSubmitter),
             servicePrivateKey,
@@ -212,7 +196,7 @@ contract HoleskyIntegration is Test {
     }
 
     function test_ProofSubmitterExecuteOnRewardsCoordinatorFromServiceViaEntryPoint()
-    external
+        external
     {
         uint256 deposited = 10 ether;
 
@@ -220,8 +204,8 @@ contract HoleskyIntegration is Test {
 
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
-                value: deposited
-            }();
+            value: deposited
+        }();
         proofSubmitter.setOperator(serviceAddress);
 
         vm.stopPrank();
@@ -231,14 +215,8 @@ contract HoleskyIntegration is Test {
             address(rewardsCoordinator),
             processClaimCalldata
         );
-        vm.expectCall(
-            address(proofSubmitter),
-            executeCallData
-        );
-        vm.expectCall(
-            address(rewardsCoordinator),
-            processClaimCalldata
-        );
+        vm.expectCall(address(proofSubmitter), executeCallData);
+        vm.expectCall(address(rewardsCoordinator), processClaimCalldata);
         _executeUserOperation(
             address(proofSubmitter),
             servicePrivateKey,
@@ -253,8 +231,8 @@ contract HoleskyIntegration is Test {
 
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
-                value: deposited
-            }();
+            value: deposited
+        }();
         proofSubmitter.setOperator(serviceAddress);
 
         uint256 actualBalance = proofSubmitter.getBalance();
@@ -284,10 +262,7 @@ contract HoleskyIntegration is Test {
 
         bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
         bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            servicePrivateKey,
-            digest
-        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(servicePrivateKey, digest);
         userOp.signature = abi.encodePacked(r, s, v);
 
         // Create an array with a single user operation
@@ -295,7 +270,13 @@ contract HoleskyIntegration is Test {
         userOps[0] = userOp;
 
         vm.startPrank(nobody);
-        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA21 didn't pay prefund"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEntryPoint.FailedOp.selector,
+                0,
+                "AA21 didn't pay prefund"
+            )
+        );
         entryPoint.handleOps(userOps, payable(nobody));
         vm.stopPrank();
 
@@ -304,36 +285,121 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
 
         vm.startPrank(nobody);
-        vm.expectCall(
-            address(proofSubmitter),
-            executeCallData
-        );
-        vm.expectCall(
-            address(rewardsCoordinator),
-            processClaimCalldata
-        );
+        vm.expectCall(address(proofSubmitter), executeCallData);
+        vm.expectCall(address(rewardsCoordinator), processClaimCalldata);
         entryPoint.handleOps(userOps, payable(nobody));
         vm.stopPrank();
+    }
+
+    function test_OnlyOwnerModifier() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+        vm.stopPrank();
+
+        // Test onlyOwner modifier
+        vm.prank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Erc4337Account__NotOwner.selector,
+                nobody,
+                clientAddress
+            )
+        );
+        proofSubmitter.withdrawFromEntryPoint();
+
+        // Successful call by owner
+        vm.prank(clientAddress);
+        proofSubmitter.withdrawFromEntryPoint();
+    }
+
+    function test_OnlyOperatorOrOwnerModifier() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+        vm.stopPrank();
+
+        // Test onlyOperatorOrOwner modifier
+        vm.prank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProofSubmitterErrors
+                    .ProofSubmitter__CallerNeitherOperatorNorOwner
+                    .selector,
+                nobody
+            )
+        );
+        proofSubmitter.setOperator(serviceAddress);
+
+        // Successful call by owner
+        vm.prank(clientAddress);
+        proofSubmitter.setOperator(serviceAddress);
+
+        // Successful call by operator
+        vm.prank(serviceAddress);
+        proofSubmitter.setOperator(nobody);
+    }
+
+    function test_OnlyEntryPointModifier() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+        vm.stopPrank();
+
+        // Test onlyEntryPoint modifier
+        bytes memory callData = abi.encodeWithSelector(
+            ProofSubmitter.execute.selector,
+            address(0),
+            new bytes(0)
+        );
+        UserOperation memory userOp = _generateUnsignedUserOperation(
+            address(proofSubmitter),
+            callData
+        );
+        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
+        bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(servicePrivateKey, digest);
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        vm.prank(nobody);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Erc4337Account__NotEntryPoint.selector,
+                nobody
+            )
+        );
+        proofSubmitter.validateUserOp(userOp, userOpHash, 0);
+
+        // Successful call through EntryPoint (simulated)
+        vm.prank(address(entryPoint));
+        proofSubmitter.validateUserOp(userOp, userOpHash, 0);
     }
 
     function _generateUnsignedUserOperation(
         address _sender,
         bytes memory _callData
-    ) private view returns(UserOperation memory) {
+    ) private view returns (UserOperation memory) {
         uint256 nonce = entryPoint.getNonce(_sender, 0);
-        return UserOperation({
-            sender: _sender,
-            nonce: nonce,
-            initCode: "",
-            callData: _callData,
-            callGasLimit: 1000000,
-            verificationGasLimit: 1000000,
-            preVerificationGas: 1000000,
-            maxFeePerGas: 1 gwei,
-            maxPriorityFeePerGas: 1 gwei,
-            paymasterAndData: "",
-            signature: ""
-        });
+        return
+            UserOperation({
+                sender: _sender,
+                nonce: nonce,
+                initCode: "",
+                callData: _callData,
+                callGasLimit: 1000000,
+                verificationGasLimit: 1000000,
+                preVerificationGas: 1000000,
+                maxFeePerGas: 1 gwei,
+                maxPriorityFeePerGas: 1 gwei,
+                paymasterAndData: "",
+                signature: ""
+            });
     }
 
     function _executeUserOperation(
@@ -350,10 +416,7 @@ contract HoleskyIntegration is Test {
 
         bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
         bytes32 digest = ECDSA.toEthSignedMessageHash(userOpHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            _signerPrivateKey,
-            digest
-        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signerPrivateKey, digest);
         userOp.signature = abi.encodePacked(r, s, v);
 
         // Create an array with a single user operation
