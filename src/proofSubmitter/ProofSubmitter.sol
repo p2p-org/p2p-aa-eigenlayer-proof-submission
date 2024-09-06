@@ -14,15 +14,23 @@ import "../lib/eigenLayer/IEigenPodManager.sol";
 import "../lib/eigenLayer/IRewardsCoordinator.sol";
 import "../lib/@openzeppelin/contracts/utils/Address.sol";
 import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import "../lib/@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterStructs, ERC165, IProofSubmitter {
+contract ProofSubmitter is
+    Erc4337Account,
+    ProofSubmitterErrors,
+    ProofSubmitterStructs,
+    ERC165,
+    IProofSubmitter
+{
     IEigenPodManager private immutable i_eigenPodManager;
     IRewardsCoordinator private immutable i_rewardsCoordinator;
     IProofSubmitterFactory private immutable i_factory;
 
     address private s_owner;
     mapping(address => bool) private s_isOperator;
-    mapping(address => mapping(bytes4 => AllowedCalldata)) private s_allowedFunctionsForContracts;
+    mapping(address => mapping(bytes4 => AllowedCalldata))
+        private s_allowedFunctionsForContracts;
 
     /// @notice If caller is any account other than the operator or the owner, revert
     modifier onlyOperatorOrOwner() {
@@ -43,7 +51,10 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     /// @notice If caller not factory, revert
     modifier onlyFactory() {
         if (msg.sender != address(i_factory)) {
-            revert ProofSubmitter__NotFactoryCalled(msg.sender, address(i_factory));
+            revert ProofSubmitter__NotFactoryCalled(
+                msg.sender,
+                address(i_factory)
+            );
         }
         _;
     }
@@ -83,10 +94,10 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IEigenPod.startCheckpoint.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.AnyCalldata,
-                bytesCount: 0,
-                startIndex: 0
-            }),
+                    ruleType: RuleType.AnyCalldata,
+                    bytesCount: 0,
+                    startIndex: 0
+                }),
                 allowedBytes: ""
             })
         );
@@ -95,10 +106,10 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IEigenPod.verifyWithdrawalCredentials.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.AnyCalldata,
-                bytesCount: 0,
-                startIndex: 0
-            }),
+                    ruleType: RuleType.AnyCalldata,
+                    bytesCount: 0,
+                    startIndex: 0
+                }),
                 allowedBytes: ""
             })
         );
@@ -107,10 +118,10 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IEigenPod.verifyCheckpointProofs.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.AnyCalldata,
-                bytesCount: 0,
-                startIndex: 0
-            }),
+                    ruleType: RuleType.AnyCalldata,
+                    bytesCount: 0,
+                    startIndex: 0
+                }),
                 allowedBytes: ""
             })
         );
@@ -120,10 +131,10 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             IRewardsCoordinator.processClaim.selector,
             AllowedCalldata({
                 rule: Rule({
-                ruleType: RuleType.Between,
-                bytesCount: 20,
-                startIndex: 44
-            }),
+                    ruleType: RuleType.Between,
+                    bytesCount: 20,
+                    startIndex: 44
+                }),
                 allowedBytes: abi.encodePacked(_owner)
             })
         );
@@ -155,22 +166,34 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     ) external onlyOwner {
         delete s_allowedFunctionsForContracts[_contract][_selector];
 
-        emit ProofSubmitter__AllowedFunctionForContractRemoved(_contract, _selector);
+        emit ProofSubmitter__AllowedFunctionForContractRemoved(
+            _contract,
+            _selector
+        );
     }
 
     /**
-    * execute a transaction (called directly from owner, or by entryPoint)
-    */
-    function execute(address _target, bytes calldata _data) external onlyEntryPointOrOwner {
+     * execute a transaction (called directly from owner, or by entryPoint)
+     */
+    function execute(
+        address _target,
+        bytes calldata _data
+    ) external onlyEntryPointOrOwner {
         _call(_target, _data);
     }
 
     /**
      * execute a sequence of transactions
      */
-    function executeBatch(address[] calldata _targets, bytes[] calldata _data) external onlyEntryPointOrOwner {
+    function executeBatch(
+        address[] calldata _targets,
+        bytes[] calldata _data
+    ) external onlyEntryPointOrOwner {
         if (_targets.length != _data.length) {
-            revert ProofSubmitter__WrongArrayLengths(_targets.length, _data.length);
+            revert ProofSubmitter__WrongArrayLengths(
+                _targets.length,
+                _data.length
+            );
         }
 
         for (uint256 i = 0; i < _targets.length; i++) {
@@ -185,7 +208,11 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     ) private {
         s_allowedFunctionsForContracts[_contract][_selector] = _allowedCalldata;
 
-        emit ProofSubmitter__AllowedFunctionForContractSet(_contract, _selector, _allowedCalldata);
+        emit ProofSubmitter__AllowedFunctionForContractSet(
+            _contract,
+            _selector,
+            _allowedCalldata
+        );
     }
 
     function _call(address _target, bytes calldata _data) private {
@@ -202,7 +229,9 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     /// @notice Returns function selector (first 4 bytes of data)
     /// @param _data calldata (encoded signature + arguments)
     /// @return functionSelector function selector
-    function _getFunctionSelector(bytes calldata _data) private pure returns (bytes4 functionSelector) {
+    function _getFunctionSelector(
+        bytes calldata _data
+    ) private pure returns (bytes4 functionSelector) {
         if (_data.length < 4) {
             revert ProofSubmitter__DataTooShort();
         }
@@ -221,7 +250,10 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         bytes4 _selector,
         bytes calldata _calldataAfterSelector
     ) public view returns (bool) {
-        AllowedCalldata storage allowedCalldata = s_allowedFunctionsForContracts[_target][_selector];
+        AllowedCalldata
+            storage allowedCalldata = s_allowedFunctionsForContracts[_target][
+                _selector
+            ];
         Rule memory rule = allowedCalldata.rule;
 
         RuleType ruleType = rule.ruleType;
@@ -236,17 +268,27 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
             // Ensure the calldata is at least as long as bytesCount
             if (_calldataAfterSelector.length < bytesCount) return false;
             // Compare the beginning of the calldata with the allowed bytes
-            return keccak256(_calldataAfterSelector[:bytesCount]) == keccak256(allowedCalldata.allowedBytes);
+            return
+                keccak256(_calldataAfterSelector[:bytesCount]) ==
+                keccak256(allowedCalldata.allowedBytes);
         } else if (ruleType == RuleType.EndsWith) {
             // Ensure the calldata is at least as long as bytesCount
             if (_calldataAfterSelector.length < bytesCount) return false;
             // Compare the end of the calldata with the allowed bytes
-            return keccak256(_calldataAfterSelector[_calldataAfterSelector.length - bytesCount:]) == keccak256(allowedCalldata.allowedBytes);
+            return
+                keccak256(
+                    _calldataAfterSelector[_calldataAfterSelector.length -
+                        bytesCount:]
+                ) == keccak256(allowedCalldata.allowedBytes);
         } else if (ruleType == RuleType.Between) {
             // Ensure the calldata is at least as long as the range defined by startIndex and bytesCount
-            if (_calldataAfterSelector.length < startIndex + bytesCount) return false;
+            if (_calldataAfterSelector.length < startIndex + bytesCount)
+                return false;
             // Compare the specified range in the calldata with the allowed bytes
-            return keccak256(_calldataAfterSelector[startIndex:startIndex + bytesCount]) == keccak256(allowedCalldata.allowedBytes);
+            return
+                keccak256(
+                    _calldataAfterSelector[startIndex:startIndex + bytesCount]
+                ) == keccak256(allowedCalldata.allowedBytes);
         }
 
         // Default to false if none of the conditions are met
@@ -257,7 +299,9 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
         return s_owner;
     }
 
-    function isOperator(address _address) public view override(Erc4337Account) returns (bool) {
+    function isOperator(
+        address _address
+    ) public view override(Erc4337Account) returns (bool) {
         return s_isOperator[_address];
     }
 
@@ -266,7 +310,11 @@ contract ProofSubmitter is Erc4337Account, ProofSubmitterErrors, ProofSubmitterS
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IProofSubmitter).interfaceId || super.supportsInterface(interfaceId);
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165, IERC165) returns (bool) {
+        return
+            interfaceId == type(IProofSubmitter).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 }
