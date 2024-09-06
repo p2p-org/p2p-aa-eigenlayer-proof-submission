@@ -381,6 +381,92 @@ contract HoleskyIntegration is Test {
         proofSubmitter.validateUserOp(userOp, userOpHash, 0);
     }
 
+    function test_PredictProofSubmitterAddress() external {
+        address expectedAddress = factory.predictProofSubmitterAddress(
+            clientAddress
+        );
+
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+        vm.stopPrank();
+
+        assertEq(
+            address(proofSubmitter),
+            expectedAddress,
+            "Predicted address should match created address"
+        );
+    }
+
+    function test_CreateProofSubmitterTwice() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+
+        ProofSubmitter proofSubmitter1 = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+        ProofSubmitter proofSubmitter2 = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+
+        assertEq(
+            address(proofSubmitter1),
+            address(proofSubmitter2),
+            "Should return the same ProofSubmitter instance"
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_GetReferenceProofSubmitter() external view {
+        address referenceProofSubmitter = factory.getReferenceProofSubmitter();
+        assertFalse(
+            referenceProofSubmitter == address(0),
+            "Reference ProofSubmitter should not be zero address"
+        );
+    }
+
+    function test_SupportsInterface() external view {
+        bool supportsIProofSubmitterFactory = factory.supportsInterface(
+            type(IProofSubmitterFactory).interfaceId
+        );
+        assertTrue(
+            supportsIProofSubmitterFactory,
+            "Should support IProofSubmitterFactory interface"
+        );
+
+        bool supportsERC165 = factory.supportsInterface(
+            type(IERC165).interfaceId
+        );
+        assertTrue(supportsERC165, "Should support IERC165 interface");
+
+        bool supportsRandomInterface = factory.supportsInterface(
+            bytes4(keccak256("randomInterface()"))
+        );
+        assertFalse(
+            supportsRandomInterface,
+            "Should not support random interface"
+        );
+    }
+
+    function test_CreateProofSubmitterWithZeroValue() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 0 ether
+        }();
+        vm.stopPrank();
+
+        assertEq(
+            proofSubmitter.getBalance(),
+            0,
+            "ProofSubmitter balance should be zero"
+        );
+    }
+
     function _generateUnsignedUserOperation(
         address _sender,
         bytes memory _callData
