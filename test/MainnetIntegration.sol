@@ -16,11 +16,11 @@ import "../src/lib/erc4337/UserOperation.sol";
 import "../src/mocks/erc4337/IEntryPoint.sol";
 import "../src/mocks/TestContract.sol";
 
-contract HoleskyIntegration is Test {
+contract MainnetIntegration is Test {
     IEigenPodManagerMock private constant eigenPodManager =
-        IEigenPodManagerMock(0x30770d7E3e71112d7A6b7259542D1f680a70e315);
+        IEigenPodManagerMock(0x91E677b07F7AF907ec9a428aafA9fc14a0d3A338);
     IRewardsCoordinator private constant rewardsCoordinator =
-        IRewardsCoordinator(0xAcc1fb458a1317E886dB376Fc8141540537E68fE);
+        IRewardsCoordinator(0x7750d328b314EfFa365A0402CcfD489B80B0adda);
     IEntryPoint private constant entryPoint =
         IEntryPoint(0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789);
 
@@ -40,7 +40,7 @@ contract HoleskyIntegration is Test {
     );
 
     function setUp() public {
-        vm.createSelectFork("holesky", 2255110);
+        vm.createSelectFork("mainnet", 20710000);
 
         (clientAddress, clientPrivateKey) = makeAddrAndKey("client");
         (serviceAddress, servicePrivateKey) = makeAddrAndKey("service");
@@ -51,7 +51,7 @@ contract HoleskyIntegration is Test {
         factory = new ProofSubmitterFactory();
     }
 
-    function test_ProofSubmitterGettingBalance_Holesky() external {
+    function test_ProofSubmitterGettingBalance_Mainnet() external {
         uint256 deposited = 10 ether;
 
         vm.startPrank(clientAddress);
@@ -74,7 +74,7 @@ contract HoleskyIntegration is Test {
         assertEq(deposited, actualBalance);
     }
 
-    function test_ProofSubmitterExecuteOnPodFromOwner_Holesky() external {
+    function test_ProofSubmitterExecuteOnPodFromOwner_Mainnet() external {
         uint256 deposited = 10 ether;
 
         vm.startPrank(clientAddress);
@@ -99,7 +99,7 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_ProofSubmitterExecuteOnRewardsCoordinatorFromOwner_Holesky()
+    function test_ProofSubmitterExecuteOnRewardsCoordinatorFromOwner_Mainnet()
         external
     {
         uint256 deposited = 10 ether;
@@ -122,7 +122,7 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_ProofSubmitterExecuteOnPodFromServiceViaEntryPoint_Holesky()
+    function test_ProofSubmitterExecuteOnPodFromServiceViaEntryPoint_Mainnet()
         external
     {
         uint256 deposited = 10 ether;
@@ -178,7 +178,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_ProofSubmitterExecuteOnRewardsCoordinatorFromServiceViaEntryPoint_Holesky()
+    function test_ProofSubmitterExecuteOnRewardsCoordinatorFromServiceViaEntryPoint_Mainnet()
         external
     {
         uint256 deposited = 10 ether;
@@ -207,7 +207,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_WithdrawAndTopUp_Holesky() external {
+    function test_WithdrawAndTopUp_Mainnet() external {
         uint256 deposited = 10 ether;
 
         vm.startPrank(clientAddress);
@@ -274,7 +274,7 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_OnlyOwnerModifier_Holesky() external {
+    function test_OnlyOwnerModifier_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
@@ -298,7 +298,7 @@ contract HoleskyIntegration is Test {
         proofSubmitter.withdrawFromEntryPoint();
     }
 
-    function test_OnlyOperatorOrOwnerModifier_Holesky() external {
+    function test_OnlyOperatorOrOwnerModifier_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
@@ -327,7 +327,7 @@ contract HoleskyIntegration is Test {
         proofSubmitter.setOperator(nobody);
     }
 
-    function test_OnlyEntryPointModifier_Holesky() external {
+    function test_OnlyEntryPointModifier_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
@@ -364,7 +364,7 @@ contract HoleskyIntegration is Test {
         proofSubmitter.validateUserOp(userOp, userOpHash, 0);
     }
 
-    function test_PredictProofSubmitterAddress_Holesky() external {
+    function test_PredictProofSubmitterAddress_Mainnet() external {
         address expectedAddress = factory.predictProofSubmitterAddress(
             clientAddress
         );
@@ -383,7 +383,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_CreateProofSubmitterTwice_Holesky() external {
+    function test_CreateProofSubmitterTwice_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
 
@@ -403,7 +403,7 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_GetReferenceProofSubmitter_Holesky() external view {
+    function test_GetReferenceProofSubmitter_Mainnet() external view {
         address referenceProofSubmitter = factory.getReferenceProofSubmitter();
         assertFalse(
             referenceProofSubmitter == address(0),
@@ -411,7 +411,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_SupportsInterface_Holesky() external view {
+    function test_SupportsInterface_Mainnet() external view {
         bool supportsIProofSubmitterFactory = factory.supportsInterface(
             type(IProofSubmitterFactory).interfaceId
         );
@@ -434,7 +434,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_CreateProofSubmitterWithZeroValue_Holesky() external {
+    function test_CreateProofSubmitterWithZeroValue_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
 
@@ -450,7 +450,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_SetOperator_Holesky() external {
+    function test_SetOperator_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
@@ -477,7 +477,7 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_ExecuteCall_Holesky() external {
+    function test_ExecuteCall_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
@@ -539,7 +539,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_AddDeposit_Holesky() external {
+    function test_AddDeposit_Mainnet() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
         ProofSubmitter proofSubmitter = factory.createProofSubmitter{
@@ -560,7 +560,7 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_ExecuteBatch_Holesky() external {
+    function test_ExecuteBatch_Mainnet() external {
         uint256 deposited = 10 ether;
 
         vm.startPrank(clientAddress);
@@ -640,7 +640,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_ExecuteBatchWrongArrayLengths_Holesky() external {
+    function test_ExecuteBatchWrongArrayLengths_Mainnet() external {
         uint256 deposited = 10 ether;
 
         vm.startPrank(clientAddress);
@@ -687,7 +687,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_SetAllowedFunctionForContract_Holesky() external {
+    function test_SetAllowedFunctionForContract_Mainnet() external {
         vm.startPrank(clientAddress);
 
         eigenPodManager.createPod();
@@ -743,7 +743,7 @@ contract HoleskyIntegration is Test {
         );
     }
 
-    function test_RemoveAllowedFunctionForContract_Holesky() external {
+    function test_RemoveAllowedFunctionForContract_Mainnet() external {
         vm.startPrank(clientAddress);
 
         eigenPodManager.createPod();
