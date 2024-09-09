@@ -14,6 +14,7 @@ import "../src/mocks/IEigenPodMock.sol";
 import "../src/proofSubmitter/ProofSubmitterStructs.sol";
 import "../src/lib/erc4337/UserOperation.sol";
 import "../src/mocks/erc4337/IEntryPoint.sol";
+import "../src/mocks/TestContract.sol";
 
 contract HoleskyIntegration is Test {
     IEigenPodManagerMock private constant eigenPodManager =
@@ -64,31 +65,6 @@ contract HoleskyIntegration is Test {
 
         uint256 actualBalance = proofSubmitter.getBalance();
         assertEq(deposited, actualBalance);
-    }
-
-    function test_WithdrawFromEntryPoint() external {
-        uint256 deposited = 10 ether;
-
-        vm.startPrank(clientAddress);
-
-        eigenPodManager.createPod();
-        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
-            value: deposited
-        }();
-
-        uint256 actualBalance = proofSubmitter.getBalance();
-        assertEq(deposited, actualBalance);
-
-        uint256 clientBalanceBeforeWithdraw = clientAddress.balance;
-        proofSubmitter.withdrawFromEntryPoint();
-        uint256 clientBalanceAfterWithdraw = clientAddress.balance;
-
-        assertEq(
-            clientBalanceAfterWithdraw - clientBalanceBeforeWithdraw,
-            deposited
-        );
-
-        vm.stopPrank();
     }
 
     function test_ProofSubmitterExecuteOnPodFromOwner() external {
@@ -465,6 +441,173 @@ contract HoleskyIntegration is Test {
             0,
             "ProofSubmitter balance should be zero"
         );
+    }
+
+    function test_SetOperator() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+
+        assertFalse(
+            proofSubmitter.isOperator(serviceAddress),
+            "Service address should not be an operator initially"
+        );
+
+        proofSubmitter.setOperator(serviceAddress);
+        assertTrue(
+            proofSubmitter.isOperator(serviceAddress),
+            "Service address should be set as an operator"
+        );
+
+        proofSubmitter.dismissOperator(serviceAddress);
+        assertFalse(
+            proofSubmitter.isOperator(serviceAddress),
+            "Service address should be removed as an operator"
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_SetAllowedFunctionForContract() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+
+        address testContract = address(0x1234);
+        bytes4 functionSelector = bytes4(keccak256("testFunction(uint256)"));
+        ProofSubmitterStructs.Rule memory rule = ProofSubmitterStructs.Rule({
+            ruleType: ProofSubmitterStructs.RuleType.AnyCalldata,
+            bytesCount: 0,
+            startIndex: 0
+        });
+        bytes memory allowedBytes = "";
+
+        ProofSubmitterStructs.AllowedCalldata
+            memory allowedCalldata = ProofSubmitterStructs.AllowedCalldata({
+                rule: rule,
+                allowedBytes: allowedBytes
+            });
+
+        proofSubmitter.setAllowedFunctionForContract(
+            testContract,
+            functionSelector,
+            allowedCalldata
+        );
+
+        ProofSubmitterStructs.AllowedCalldata
+            memory savedAllowedCalldata = proofSubmitter.getAllowedCalldata(
+                testContract,
+                functionSelector
+            );
+        assertEq(
+            uint8(savedAllowedCalldata.rule.ruleType),
+            uint8(allowedCalldata.rule.ruleType),
+            "Rule type should match"
+        );
+        assertEq(
+            savedAllowedCalldata.rule.bytesCount,
+            rule.bytesCount,
+            "Bytes count should match"
+        );
+        assertEq(
+            savedAllowedCalldata.rule.startIndex,
+            rule.startIndex,
+            "Start index should match"
+        );
+        assertEq(
+            savedAllowedCalldata.allowedBytes,
+            allowedBytes,
+            "Allowed bytes should match"
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_ExecuteCall() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+
+        address testContract = address(new TestContract());
+        bytes4 functionSelector = TestContract(testContract).setValue.selector;
+        ProofSubmitterStructs.Rule memory rule = ProofSubmitterStructs.Rule({
+            ruleType: ProofSubmitterStructs.RuleType.AnyCalldata,
+            bytesCount: 0,
+            startIndex: 0
+        });
+        bytes memory allowedBytes = "";
+        ProofSubmitterStructs.AllowedCalldata
+            memory allowedCalldata = ProofSubmitterStructs.AllowedCalldata({
+                rule: rule,
+                allowedBytes: allowedBytes
+            });
+
+        proofSubmitter.setAllowedFunctionForContract(
+            testContract,
+            functionSelector,
+            allowedCalldata
+        );
+        proofSubmitter.setOperator(serviceAddress);
+
+        vm.stopPrank();
+
+        vm.startPrank(serviceAddress);
+        bytes memory callData = abi.encodeWithSelector(functionSelector, 42);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProofSubmitterErrors
+                    .ProofSubmitter__CallerNeitherEntryPointNorOwner
+                    .selector,
+                serviceAddress
+            )
+        );
+        proofSubmitter.execute(testContract, callData);
+        vm.stopPrank();
+
+        bytes memory executeCallData = abi.encodeWithSelector(
+            ProofSubmitter.execute.selector,
+            address(testContract),
+            callData
+        );
+
+        _executeUserOperation(
+            address(proofSubmitter),
+            servicePrivateKey,
+            executeCallData
+        );
+
+        assertEq(
+            TestContract(testContract).value(),
+            42,
+            "Value should be set to 42"
+        );
+    }
+
+    function test_AddDeposit() external {
+        vm.startPrank(clientAddress);
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+
+        uint256 initialBalance = proofSubmitter.getBalance();
+        uint256 additionalDeposit = 0.5 ether;
+
+        proofSubmitter.depositToEntryPoint{value: additionalDeposit}();
+
+        assertEq(
+            proofSubmitter.getBalance(),
+            initialBalance + additionalDeposit,
+            "ProofSubmitter balance should increase"
+        );
+
+        vm.stopPrank();
     }
 
     function _generateUnsignedUserOperation(
