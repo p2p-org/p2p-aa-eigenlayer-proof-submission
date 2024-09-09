@@ -32,6 +32,13 @@ contract HoleskyIntegration is Test {
     uint256 private servicePrivateKey;
     address private nobody;
 
+    event UserOperationRevertReason(
+        bytes32 indexed userOpHash,
+        address indexed sender,
+        uint256 nonce,
+        bytes revertReason
+    );
+
     function setUp() public {
         vm.createSelectFork("holesky", 2255110);
 
@@ -470,63 +477,6 @@ contract HoleskyIntegration is Test {
         vm.stopPrank();
     }
 
-    function test_SetAllowedFunctionForContract() external {
-        vm.startPrank(clientAddress);
-        eigenPodManager.createPod();
-        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
-            value: 1 ether
-        }();
-
-        address testContract = address(0x1234);
-        bytes4 functionSelector = bytes4(keccak256("testFunction(uint256)"));
-        ProofSubmitterStructs.Rule memory rule = ProofSubmitterStructs.Rule({
-            ruleType: ProofSubmitterStructs.RuleType.AnyCalldata,
-            bytesCount: 0,
-            startIndex: 0
-        });
-        bytes memory allowedBytes = "";
-
-        ProofSubmitterStructs.AllowedCalldata
-            memory allowedCalldata = ProofSubmitterStructs.AllowedCalldata({
-                rule: rule,
-                allowedBytes: allowedBytes
-            });
-
-        proofSubmitter.setAllowedFunctionForContract(
-            testContract,
-            functionSelector,
-            allowedCalldata
-        );
-
-        ProofSubmitterStructs.AllowedCalldata
-            memory savedAllowedCalldata = proofSubmitter.getAllowedCalldata(
-                testContract,
-                functionSelector
-            );
-        assertEq(
-            uint8(savedAllowedCalldata.rule.ruleType),
-            uint8(allowedCalldata.rule.ruleType),
-            "Rule type should match"
-        );
-        assertEq(
-            savedAllowedCalldata.rule.bytesCount,
-            rule.bytesCount,
-            "Bytes count should match"
-        );
-        assertEq(
-            savedAllowedCalldata.rule.startIndex,
-            rule.startIndex,
-            "Start index should match"
-        );
-        assertEq(
-            savedAllowedCalldata.allowedBytes,
-            allowedBytes,
-            "Allowed bytes should match"
-        );
-
-        vm.stopPrank();
-    }
-
     function test_ExecuteCall() external {
         vm.startPrank(clientAddress);
         eigenPodManager.createPod();
@@ -608,6 +558,246 @@ contract HoleskyIntegration is Test {
         );
 
         vm.stopPrank();
+    }
+
+    function test_ExecuteBatch() external {
+        uint256 deposited = 10 ether;
+
+        vm.startPrank(clientAddress);
+
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: deposited
+        }();
+        proofSubmitter.setOperator(serviceAddress);
+
+        vm.stopPrank();
+
+        TestContract testContract = new TestContract();
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+
+        targets[0] = address(testContract);
+        data[0] = abi.encodeWithSelector(TestContract.setValue.selector, 42);
+
+        targets[1] = address(testContract);
+        data[1] = abi.encodeWithSelector(TestContract.setValue.selector, 84);
+
+        bytes memory executeBatchCallData = abi.encodeWithSelector(
+            ProofSubmitter.executeBatch.selector,
+            targets,
+            data
+        );
+
+        vm.expectCall(address(proofSubmitter), executeBatchCallData);
+        vm.expectCall(address(testContract), data[0]);
+        vm.expectCall(address(testContract), data[1]);
+
+        vm.expectEmit(false, false, false, true, address(entryPoint));
+        emit UserOperationRevertReason(
+            bytes32(0),
+            address(0),
+            0,
+            abi.encodeWithSelector(
+                ProofSubmitterErrors.ProofSubmitter__NotAllowedToCall.selector,
+                address(testContract),
+                TestContract.setValue.selector
+            )
+        );
+
+        _executeUserOperation(
+            address(proofSubmitter),
+            servicePrivateKey,
+            executeBatchCallData
+        );
+
+        vm.startPrank(clientAddress);
+        proofSubmitter.setAllowedFunctionForContract(
+            address(testContract),
+            TestContract.setValue.selector,
+            ProofSubmitterStructs.AllowedCalldata({
+                rule: ProofSubmitterStructs.Rule({
+                    ruleType: ProofSubmitterStructs.RuleType.AnyCalldata,
+                    bytesCount: 0,
+                    startIndex: 0
+                }),
+                allowedBytes: ""
+            })
+        );
+        vm.stopPrank();
+
+        _executeUserOperation(
+            address(proofSubmitter),
+            servicePrivateKey,
+            executeBatchCallData
+        );
+
+        assertEq(
+            TestContract(testContract).value(),
+            84,
+            "Value should be set to 84"
+        );
+    }
+
+    function test_ExecuteBatchWrongArrayLengths() external {
+        uint256 deposited = 10 ether;
+
+        vm.startPrank(clientAddress);
+
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: deposited
+        }();
+        proofSubmitter.setOperator(serviceAddress);
+
+        vm.stopPrank();
+
+        TestContract testContract = new TestContract();
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](1);
+
+        targets[0] = address(testContract);
+        targets[1] = address(testContract);
+        data[0] = abi.encodeWithSelector(TestContract.setValue.selector, 42);
+
+        bytes memory executeBatchCallData = abi.encodeWithSelector(
+            ProofSubmitter.executeBatch.selector,
+            targets,
+            data
+        );
+
+        vm.expectEmit(false, false, false, true, address(entryPoint));
+        emit UserOperationRevertReason(
+            bytes32(0),
+            address(0),
+            0,
+            abi.encodeWithSelector(
+                ProofSubmitterErrors.ProofSubmitter__WrongArrayLengths.selector,
+                2,
+                1
+            )
+        );
+
+        _executeUserOperation(
+            address(proofSubmitter),
+            servicePrivateKey,
+            executeBatchCallData
+        );
+    }
+
+    function test_SetAllowedFunctionForContract() external {
+        vm.startPrank(clientAddress);
+
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+
+        address testContract = address(0x1234);
+        bytes4 selector = bytes4(keccak256("testFunction()"));
+        ProofSubmitterStructs.AllowedCalldata
+            memory allowedCalldata = ProofSubmitterStructs.AllowedCalldata({
+                rule: ProofSubmitterStructs.Rule({
+                    ruleType: ProofSubmitterStructs.RuleType.Between,
+                    bytesCount: 32,
+                    startIndex: 0
+                }),
+                allowedBytes: abi.encode(address(this))
+            });
+
+        proofSubmitter.setAllowedFunctionForContract(
+            testContract,
+            selector,
+            allowedCalldata
+        );
+
+        vm.stopPrank();
+
+        // Verify the allowed function was set correctly
+        ProofSubmitterStructs.AllowedCalldata
+            memory savedAllowedCalldata = proofSubmitter.getAllowedCalldata(
+                testContract,
+                selector
+            );
+        assertEq(
+            uint8(savedAllowedCalldata.rule.ruleType),
+            uint8(ProofSubmitterStructs.RuleType.Between),
+            "Rule type should be Between"
+        );
+        assertEq(
+            savedAllowedCalldata.rule.bytesCount,
+            32,
+            "Bytes count should be 32"
+        );
+        assertEq(
+            savedAllowedCalldata.rule.startIndex,
+            0,
+            "Start index should be 0"
+        );
+        assertEq(
+            savedAllowedCalldata.allowedBytes,
+            abi.encode(address(this)),
+            "Allowed bytes should match"
+        );
+    }
+
+    function test_RemoveAllowedFunctionForContract() external {
+        vm.startPrank(clientAddress);
+
+        eigenPodManager.createPod();
+        ProofSubmitter proofSubmitter = factory.createProofSubmitter{
+            value: 1 ether
+        }();
+
+        address testContract = address(0x1234);
+        bytes4 selector = bytes4(keccak256("testFunction()"));
+        ProofSubmitterStructs.AllowedCalldata
+            memory allowedCalldata = ProofSubmitterStructs.AllowedCalldata({
+                rule: ProofSubmitterStructs.Rule({
+                    ruleType: ProofSubmitterStructs.RuleType.Between,
+                    bytesCount: 32,
+                    startIndex: 0
+                }),
+                allowedBytes: abi.encode(address(this))
+            });
+
+        proofSubmitter.setAllowedFunctionForContract(
+            testContract,
+            selector,
+            allowedCalldata
+        );
+        proofSubmitter.removeAllowedFunctionForContract(testContract, selector);
+
+        vm.stopPrank();
+
+        // Verify the allowed function was removed
+        ProofSubmitterStructs.AllowedCalldata
+            memory savedAllowedCalldata = proofSubmitter.getAllowedCalldata(
+                testContract,
+                selector
+            );
+        assertEq(
+            uint8(savedAllowedCalldata.rule.ruleType),
+            uint8(ProofSubmitterStructs.RuleType.None),
+            "Rule type should be None"
+        );
+        assertEq(
+            savedAllowedCalldata.rule.bytesCount,
+            0,
+            "Bytes count should be 0"
+        );
+        assertEq(
+            savedAllowedCalldata.rule.startIndex,
+            0,
+            "Start index should be 0"
+        );
+        assertEq(
+            savedAllowedCalldata.allowedBytes.length,
+            0,
+            "Allowed bytes should be empty"
+        );
     }
 
     function _generateUnsignedUserOperation(

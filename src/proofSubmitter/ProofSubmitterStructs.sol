@@ -5,7 +5,7 @@ pragma solidity 0.8.17;
 
 contract ProofSubmitterStructs {
     enum RuleType {
-        NonAllowed,
+        None,
         AnyCalldata,
         StartsWith,
         EndsWith,

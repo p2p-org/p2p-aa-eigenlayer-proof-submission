@@ -260,7 +260,7 @@ contract ProofSubmitter is
         uint32 bytesCount = rule.bytesCount;
         uint32 startIndex = rule.startIndex;
 
-        if (ruleType == RuleType.NonAllowed) {
+        if (ruleType == RuleType.None) {
             return false;
         } else if (ruleType == RuleType.AnyCalldata) {
             return true;
