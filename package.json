@@ -1,0 +1,18 @@
+{
+  "name": "p2p-aa-eigenlayer-proof-submission",
+  "author": "P2P Validator <info@p2p.org>",
+  "license": "MIT",
+  "scripts": {
+    "01-test-send-user-operation": "ts-node 01-test-send-user-operation.ts"
+  },
+  "dependencies": {
+    "@types/node": "22.5.4",
+    "axios": "1.7.7",
+    "cross-env": "7.0.3",
+    "dotenv": "16.4.5",
+    "permissionless": "0.2.0",
+    "ts-node": "10.9.2",
+    "typescript": "5.6.2",
+    "viem": "2.21.4"
+  }
+}
