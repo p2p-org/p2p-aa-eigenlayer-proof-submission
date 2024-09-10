@@ -16,6 +16,9 @@ import "../lib/@openzeppelin/contracts/utils/Address.sol";
 import "../lib/@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../lib/@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
+/// @title ProofSubmitter
+/// @notice This contract is used to submit proofs to the EigenLayer EigenPod
+/// @dev It uses ERC-4337 for gas sponsorship
 contract ProofSubmitter is
     Erc4337Account,
     ProofSubmitterErrors,
@@ -23,12 +26,22 @@ contract ProofSubmitter is
     ERC165,
     IProofSubmitter
 {
+    /// @notice The EigenPodManager contract
     IEigenPodManager private immutable i_eigenPodManager;
+
+    /// @notice The RewardsCoordinator contract
     IRewardsCoordinator private immutable i_rewardsCoordinator;
+
+    /// @notice The ProofSubmitterFactory contract
     IProofSubmitterFactory private immutable i_factory;
 
+    /// @notice The owner of the ProofSubmitter instance
     address private s_owner;
+
+    /// @notice Mapping to track if an address is an operator
     mapping(address => bool) private s_isOperator;
+
+    /// @notice Mapping to track allowed calldata for specific contracts and selectors
     mapping(address => mapping(bytes4 => AllowedCalldata))
         private s_allowedFunctionsForContracts;
 
@@ -59,6 +72,8 @@ contract ProofSubmitter is
         _;
     }
 
+    /// @notice Constructor for ProofSubmitter template
+    /// @param _factory The ProofSubmitterFactory contract
     constructor(IProofSubmitterFactory _factory) {
         i_factory = _factory;
 
@@ -71,6 +86,7 @@ contract ProofSubmitter is
             : IRewardsCoordinator(0xAcc1fb458a1317E886dB376Fc8141540537E68fE);
     }
 
+    /// @inheritdoc IProofSubmitter
     function initialize(address _owner) external onlyFactory {
         if (_owner == address(0)) {
             revert ProofSubmitter__ZeroAddressOwner();
@@ -87,6 +103,70 @@ contract ProofSubmitter is
         _setInitialRules(_owner);
     }
 
+    /// @inheritdoc IProofSubmitter
+    function setOperator(address _newOperator) external onlyOperatorOrOwner {
+        s_isOperator[_newOperator] = true;
+
+        emit ProofSubmitter__OperatorSet(_newOperator);
+    }
+
+    /// @inheritdoc IProofSubmitter
+    function dismissOperator(address _operator) external onlyOwner {
+        s_isOperator[_operator] = false;
+
+        emit ProofSubmitter__OperatorDismissed(_operator);
+    }
+
+    /// @inheritdoc IProofSubmitter
+    function setAllowedFunctionForContract(
+        address _contract,
+        bytes4 _selector,
+        AllowedCalldata calldata _allowedCalldata
+    ) external onlyOwner {
+        _setAllowedFunctionForContract(_contract, _selector, _allowedCalldata);
+    }
+
+    /// @inheritdoc IProofSubmitter
+    function removeAllowedFunctionForContract(
+        address _contract,
+        bytes4 _selector
+    ) external onlyOwner {
+        delete s_allowedFunctionsForContracts[_contract][_selector];
+
+        emit ProofSubmitter__AllowedFunctionForContractRemoved(
+            _contract,
+            _selector
+        );
+    }
+
+    /// @inheritdoc IProofSubmitter
+    function execute(
+        address _target,
+        bytes calldata _data
+    ) external onlyEntryPointOrOwner {
+        _call(_target, _data);
+    }
+
+    /// @inheritdoc IProofSubmitter
+    function executeBatch(
+        address[] calldata _targets,
+        bytes[] calldata _data
+    ) external onlyEntryPointOrOwner {
+        if (_targets.length != _data.length) {
+            revert ProofSubmitter__WrongArrayLengths(
+                _targets.length,
+                _data.length
+            );
+        }
+
+        for (uint256 i = 0; i < _targets.length; i++) {
+            _call(_targets[i], _data[i]);
+        }
+    }
+
+    /// @notice Set initial rules for the ProofSubmitter instance
+    /// @dev This function sets the allowed calldata for the EigenPod and the RewardsCoordinator
+    /// @param _owner The owner of the ProofSubmitter instance
     function _setInitialRules(address _owner) private {
         address pod = i_eigenPodManager.getPod(_owner);
         _setAllowedFunctionForContract(
@@ -140,67 +220,10 @@ contract ProofSubmitter is
         );
     }
 
-    function setOperator(address _newOperator) external onlyOperatorOrOwner {
-        s_isOperator[_newOperator] = true;
-
-        emit ProofSubmitter__OperatorSet(_newOperator);
-    }
-
-    function dismissOperator(address _operator) external onlyOwner {
-        s_isOperator[_operator] = false;
-
-        emit ProofSubmitter__OperatorDismissed(_operator);
-    }
-
-    function setAllowedFunctionForContract(
-        address _contract,
-        bytes4 _selector,
-        AllowedCalldata calldata _allowedCalldata
-    ) external onlyOwner {
-        _setAllowedFunctionForContract(_contract, _selector, _allowedCalldata);
-    }
-
-    function removeAllowedFunctionForContract(
-        address _contract,
-        bytes4 _selector
-    ) external onlyOwner {
-        delete s_allowedFunctionsForContracts[_contract][_selector];
-
-        emit ProofSubmitter__AllowedFunctionForContractRemoved(
-            _contract,
-            _selector
-        );
-    }
-
-    /**
-     * execute a transaction (called directly from owner, or by entryPoint)
-     */
-    function execute(
-        address _target,
-        bytes calldata _data
-    ) external onlyEntryPointOrOwner {
-        _call(_target, _data);
-    }
-
-    /**
-     * execute a sequence of transactions
-     */
-    function executeBatch(
-        address[] calldata _targets,
-        bytes[] calldata _data
-    ) external onlyEntryPointOrOwner {
-        if (_targets.length != _data.length) {
-            revert ProofSubmitter__WrongArrayLengths(
-                _targets.length,
-                _data.length
-            );
-        }
-
-        for (uint256 i = 0; i < _targets.length; i++) {
-            _call(_targets[i], _data[i]);
-        }
-    }
-
+    /// @notice Set allowed calldata for a specific contract and selector
+    /// @param _contract The contract address
+    /// @param _selector The selector of the function
+    /// @param _allowedCalldata The allowed calldata for the function
     function _setAllowedFunctionForContract(
         address _contract,
         bytes4 _selector,
@@ -215,6 +238,9 @@ contract ProofSubmitter is
         );
     }
 
+    /// @notice Call a function on a specific contract
+    /// @param _target The target address of the function call
+    /// @param _data The calldata of the function call
     function _call(address _target, bytes calldata _data) private {
         bytes4 selector = _getFunctionSelector(_data);
         bool isAllowed = isAllowedCalldata(_target, selector, _data[4:]);
@@ -238,6 +264,7 @@ contract ProofSubmitter is
         return bytes4(_data[:4]);
     }
 
+    /// @inheritdoc IProofSubmitter
     function getAllowedCalldata(
         address _target,
         bytes4 _selector
@@ -245,6 +272,7 @@ contract ProofSubmitter is
         return s_allowedFunctionsForContracts[_target][_selector];
     }
 
+    /// @inheritdoc IProofSubmitter
     function isAllowedCalldata(
         address _target,
         bytes4 _selector,
@@ -295,16 +323,23 @@ contract ProofSubmitter is
         return false;
     }
 
+    /// @notice Get the owner of the ProofSubmitter instance
+    /// @return owner The owner address
     function owner() public view override(Erc4337Account) returns (address) {
         return s_owner;
     }
 
+    /// @notice Check if an address is an operator
+    /// @param _address The address to check
+    /// @return isOperator true if the address is an operator, false otherwise
     function isOperator(
         address _address
     ) public view override(Erc4337Account) returns (bool) {
         return s_isOperator[_address];
     }
 
+    /// @notice Get the factory address
+    /// @return factory The factory address
     function factory() public view override returns (address) {
         return address(i_factory);
     }
