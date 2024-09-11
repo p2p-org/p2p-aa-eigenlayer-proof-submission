@@ -3,7 +3,8 @@
   "author": "P2P Validator <info@p2p.org>",
   "license": "MIT",
   "scripts": {
-    "01-test-send-user-operation": "ts-node 01-test-send-user-operation.ts"
+    "01-test-send-user-operation": "ts-node 01-test-send-user-operation.ts",
+    "deploy": "forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --chain holesky --json --verify --etherscan-api-key $ETHERSCAN_API_KEY -vvvvv"
   },
   "dependencies": {
     "@types/node": "22.5.4",
