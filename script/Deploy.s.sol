@@ -16,7 +16,7 @@ contract Deploy is Script {
 
         vm.startBroadcast(deployerKey);
         factory = new ProofSubmitterFactory();
-        proofSubmitter = factory.createProofSubmitter{value: 0.01 ether}();
+        proofSubmitter = factory.createProofSubmitter();
         vm.stopBroadcast();
 
         return (factory, proofSubmitter);

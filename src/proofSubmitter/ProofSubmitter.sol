@@ -92,15 +92,15 @@ contract ProofSubmitter is
             revert ProofSubmitter__ZeroAddressOwner();
         }
 
-        bool hasPod = i_eigenPodManager.hasPod(_owner);
-        if (!hasPod) {
-            revert ProofSubmitter__OwnerShouldHaveEigenPod();
-        }
+        // bool hasPod = i_eigenPodManager.hasPod(_owner);
+        // if (!hasPod) {
+        //     revert ProofSubmitter__OwnerShouldHaveEigenPod();
+        // }
 
         s_owner = _owner;
         emit ProofSubmitter__Initialized(_owner);
 
-        _setInitialRules(_owner);
+        // _setInitialRules(_owner);
     }
 
     /// @inheritdoc IProofSubmitter
