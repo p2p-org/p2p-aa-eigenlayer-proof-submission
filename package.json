@@ -7,7 +7,7 @@
     "deploy": "forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --chain holesky --json --verify --etherscan-api-key $ETHERSCAN_API_KEY -vvvvv"
   },
   "dependencies": {
-    "@types/node": "22.5.4",
+    "@types/node": "22.20.2",
     "axios": "1.7.7",
     "cross-env": "7.0.3",
     "dotenv": "16.4.5",
